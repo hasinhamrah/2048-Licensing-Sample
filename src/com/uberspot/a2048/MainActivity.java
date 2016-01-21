@@ -3,15 +3,19 @@ package com.uberspot.a2048;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MotionEvent;
 import android.view.View;
@@ -24,11 +28,27 @@ import android.webkit.WebSettings.RenderPriority;
 import android.webkit.WebView;
 import android.widget.Toast;
 
-import de.cketti.library.changelog.ChangeLog;
+import com.google.android.vending.licensing.AESObfuscator;
+import com.google.android.vending.licensing.LicenseChecker;
+import com.google.android.vending.licensing.LicenseCheckerCallback;
+import com.google.android.vending.licensing.MyketServerManagedPolicy;
+import com.google.android.vending.licensing.Policy;
+import com.uberspot.a2048.myket.R;
 
 public class MainActivity extends Activity {
+//    private static final String BASE64_PUBLIC_KEY = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCmQ7Akv2d49KQXaXwMkuQFoIyQyKT4FXL3OUe+CxYlfQZRJr9+oHeBtmvqIojj0U/UGuVtghsHX8vBgqW4t4UeiKaQDzm+GNgfDSGktjoFZBQLT4MLp5vJzOK2Xuh0GRcUFW6aXhsZY5EJK4UFzYwbRu4aNHdurfCCycke8o/SywIDAQAB";
+    private static final String BASE64_PUBLIC_KEY = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCImQRBqXvjkCNryHoLHwHJ3AHeDCTkv6a4Px4AML9HgUmbA3uCdVcnrs127E6sYgIMslrFCewB7YSknz1LlMME77yIrYrvmKK8lTZWAkVPXkf8GKoPOcb2aYtnT7rSap/MviGE3bV3vCNaUzQl7mim81BIrY1AsLm4E15mdCrJTwIDAQAB";
 
-    private static final String MAIN_ACTIVITY_TAG = "2048_MainActivity";
+    // Generate your own 20 random bytes, and put them here.
+    private static final byte[] SALT = new byte[]{
+            -46, 65, 30, -128, -103, -57, 74, -64, 51, 88, -95, -45, 77, -117, -36, -113, -11, 32, -64, 89
+    };
+
+    private boolean isLicenseCheck;
+    private LicenseCheckerCallback mLicenseCheckerCallback;
+    private LicenseChecker mChecker;
+    // A handler on the UI thread.
+    private Handler mHandler;
 
     private WebView mWebView;
     private long mLastBackPress;
@@ -39,7 +59,7 @@ public class MainActivity extends Activity {
     private static final long mTouchThreshold = 2000;
     private Toast pressBackToast;
 
-    @SuppressLint({ "SetJavaScriptEnabled", "NewApi", "ShowToast" })
+    @SuppressLint({"SetJavaScriptEnabled", "NewApi", "ShowToast"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -62,7 +82,6 @@ public class MainActivity extends Activity {
             isOrientationEnabled = Settings.System.getInt(getContentResolver(),
                     Settings.System.ACCELEROMETER_ROTATION) == 1;
         } catch (SettingNotFoundException e) {
-            Log.d(MAIN_ACTIVITY_TAG, "Settings could not be loaded");
         }
 
         // If rotation isn't locked and it's a LARGE screen then add orientation changes based on sensor
@@ -70,26 +89,157 @@ public class MainActivity extends Activity {
                 & Configuration.SCREENLAYOUT_SIZE_MASK;
         if (((screenLayout == Configuration.SCREENLAYOUT_SIZE_LARGE)
                 || (screenLayout == Configuration.SCREENLAYOUT_SIZE_XLARGE))
-                    && isOrientationEnabled) {
+                && isOrientationEnabled) {
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
         }
 
         setContentView(R.layout.activity_main);
 
-        ChangeLog cl = new ChangeLog(this);
-        if (cl.isFirstRun()) {
-            cl.getLogDialog().show();
-        }
-
         // Load webview with game
         mWebView = (WebView) findViewById(R.id.mainWebView);
         WebSettings settings = mWebView.getSettings();
+        String packageName = getPackageName();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setRenderPriority(RenderPriority.HIGH);
-        settings.setDatabasePath(getFilesDir().getParentFile().getPath() + "/databases");
+        settings.setDatabasePath("/data/data/" + packageName + "/databases");
 
+        if (!isLicenseCheck) {
+            initLicense();
+            doCheck();
+        } else {
+            appOnCreate(savedInstanceState);
+        }
+    }
+
+    private void initLicense() {
+        // Try to use more data here. ANDROID_ID is a single point of attack.
+        String deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+        // Library calls this when it's done.
+        mLicenseCheckerCallback = new MyLicenseCheckerCallback();
+        mHandler = new Handler();
+        // Construct the LicenseChecker with a policy.
+        MyketServerManagedPolicy policy = new MyketServerManagedPolicy(getApplicationContext(),
+                new AESObfuscator(SALT, getPackageName(), deviceId));
+        mChecker = new LicenseChecker(this, policy, BASE64_PUBLIC_KEY);
+    }
+
+    private void doCheck() {
+        setProgressBarIndeterminateVisibility(true);
+        mChecker.checkAccess(mLicenseCheckerCallback);
+    }
+
+    private class MyLicenseCheckerCallback implements LicenseCheckerCallback {
+        public void allow(int policyReason) {
+            if (isFinishing()) {
+                // Don't update UI if Activity is finishing.
+                return;
+            }
+
+            // Run on UI thread
+            mHandler.post(new Runnable() {
+                public void run() {
+                    setProgressBarIndeterminateVisibility(false);
+                    appOnCreate(null);
+                }
+            });
+        }
+
+        public void dontAllow(final int policyReason) {
+            if (isFinishing()) {
+                // Don't update UI if Activity is finishing.
+                return;
+            }
+
+            // Run on UI thread
+            mHandler.post(new Runnable() {
+                public void run() {
+                    setProgressBarIndeterminateVisibility(false);
+                    showMyDialog(policyReason);
+                }
+            });
+        }
+
+        public void applicationError(final int errorCode) {
+            if (isFinishing()) {
+                // Don't update UI if Activity is finishing.
+                return;
+            }
+            // Run on UI thread
+            mHandler.post(new Runnable() {
+                public void run() {
+                    setProgressBarIndeterminateVisibility(false);
+                    String result = String.format(getString(R.string.application_error), errorCode);
+                    Toast.makeText(getApplicationContext(), result, Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+    }
+
+    private void showMyDialog(final int reason) {
+        String dialogBody, buttonMsg;
+        DialogInterface.OnClickListener listener;
+        switch (reason) {
+            case Policy.RETRY:
+                dialogBody = getResources().getString(R.string.unlicensed_dialog_retry_body);
+                buttonMsg = getResources().getString(R.string.retry_button);
+                listener = new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        doCheck();
+                    }
+                };
+                break;
+            case Policy.MYKET_NOT_INSTALLED:
+                dialogBody = getResources().getString(R.string.unlicensed_dialog_download_myket_body);
+                buttonMsg = getResources().getString(R.string.download_myket_button);
+                listener = new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("http://myket.ir")));
+                    }
+                };
+                break;
+            case Policy.MYKET_NOT_SUPPORTED:
+                dialogBody = getResources().getString(R.string.unlicensed_dialog_update_myket_body);
+                buttonMsg = getResources().getString(R.string.update_myket_button);
+                listener = new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(
+                                "myket://application/#Intent;scheme=myket;package="
+                                        + LicenseChecker.MYKET_PACKAGE_NAME + ";end"));
+                        startActivity(intent);
+                    }
+                };
+                break;
+            default:
+                dialogBody = getResources().getString(R.string.unlicensed_dialog_body);
+                buttonMsg = getResources().getString(R.string.buy_button);
+                listener = new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(
+                                "myket://application/#Intent;scheme=myket;package="
+                                        + getPackageName() + ";end"));
+                        startActivity(intent);
+                    }
+                };
+                break;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.unlicensed_dialog_title)
+                .setMessage(dialogBody)
+                .setPositiveButton(buttonMsg, listener)
+                .setNegativeButton(R.string.quit_button, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        finish();
+                    }
+                }).create().show();
+    }
+
+    private void appOnCreate(Bundle savedInstanceState) {
         // If there is a previous instance restore it in the webview
         if (savedInstanceState != null) {
             mWebView.restoreState(savedInstanceState);
@@ -150,6 +300,7 @@ public class MainActivity extends Activity {
 
     /**
      * Toggles the activitys fullscreen mode by setting the corresponding window flag
+     *
      * @param isFullScreen
      */
     private void applyFullScreen(boolean isFullScreen) {
@@ -176,5 +327,11 @@ public class MainActivity extends Activity {
             pressBackToast.cancel();
             super.onBackPressed();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mChecker.onDestroy();
     }
 }
