@@ -110,6 +110,10 @@ public class MyketServerManagedPolicy implements Policy {
      * @param rawData  the raw server response data
      */
     public void processServerResponse(int response, ResponseData rawData) {
+        if (rawData != null) {
+            response = validateTimeOrigin(response, rawData.timestamp);
+        }
+
         // Update retry counter
         if (response != Policy.RETRY) {
             setRetryCount(0);
@@ -123,7 +127,6 @@ public class MyketServerManagedPolicy implements Policy {
             setValidityTimestamp(extras.get("VT"));
             setRetryUntil(extras.get("GT"));
             setMaxRetries(extras.get("GR"));
-            response = validateTimeOrigin(response, rawData.timestamp);
         } else if (response == Policy.NOT_LICENSED) {
             // Clear out stale policy data
             setValidityTimestamp(DEFAULT_VALIDITY_TIMESTAMP);
@@ -153,7 +156,11 @@ public class MyketServerManagedPolicy implements Policy {
      */
     private int validateTimeOrigin(int l, long serverTimestamp) {
         long ts = System.currentTimeMillis();
-        if (ts < serverTimestamp || serverTimestamp + MILLIS_PER_MINUTE < ts) {
+        if (ts < serverTimestamp - MILLIS_PER_MINUTE
+                || serverTimestamp + 2 * MILLIS_PER_MINUTE < ts) {
+            Log.d(TAG, "serverTimestamp  : " + serverTimestamp);
+            Log.d(TAG, "currentTimeMillis: " + ts);
+            Log.d(TAG, "Cannot accept the license because device's time is not correct!");
             return Policy.RETRY;
         }
         return l;
