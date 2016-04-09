@@ -154,7 +154,7 @@ public class LicenseChecker implements ServiceConnection {
 
         // If we have a valid recent LICENSED response, we can skip asking
         // Market.
-        if (mPolicy.allowAccess()) {
+        if (mPolicy.allowAccess(System.currentTimeMillis())) {
             Log.i(TAG, "Using cached license response");
             callback.allow(Policy.LICENSED);
         } else {
@@ -316,7 +316,7 @@ public class LicenseChecker implements ServiceConnection {
     private synchronized void handleServiceConnectionError(LicenseValidator validator) {
         mPolicy.processServerResponse(Policy.RETRY, null);
 
-        if (mPolicy.allowAccess()) {
+        if (mPolicy.allowAccess(System.currentTimeMillis())) {
             validator.getCallback().allow(Policy.RETRY);
         } else {
             validator.getCallback().dontAllow(Policy.RETRY);

@@ -207,7 +207,7 @@ class LicenseValidator {
 
         // Given everything we know, including cached data, ask the policy if we should grant
         // access.
-        if (mPolicy.allowAccess()) {
+        if (mPolicy.allowAccess(System.currentTimeMillis())) {
             mCallback.allow(response);
         } else {
             mCallback.dontAllow(response);

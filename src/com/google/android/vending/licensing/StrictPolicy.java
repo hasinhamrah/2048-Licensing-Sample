@@ -56,7 +56,7 @@ public class StrictPolicy implements Policy {
      * This implementation allows access if and only if a LICENSED response
      * was received the last time the server was contacted.
      */
-    public boolean allowAccess() {
+    public boolean allowAccess(long ts) {
         return (mLastResponse == Policy.LICENSED);
     }
 

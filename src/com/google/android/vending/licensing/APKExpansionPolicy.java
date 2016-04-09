@@ -356,8 +356,7 @@ public class APKExpansionPolicy implements Policy {
      * the RETRY count or in the RETRY period.
      * </ol>
      */
-    public boolean allowAccess() {
-        long ts = System.currentTimeMillis();
+    public boolean allowAccess(long ts) {
         if (mLastResponse == Policy.LICENSED) {
             // Check if the LICENSED response occurred within the validity
             // timeout.
