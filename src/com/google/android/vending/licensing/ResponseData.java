@@ -16,9 +16,18 @@
 
 package com.google.android.vending.licensing;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import android.text.TextUtils;
+import android.util.Log;
+
+import org.apache.http.NameValuePair;
+import org.apache.http.client.utils.URLEncodedUtils;
 
 /**
  * ResponseData from licensing server.
@@ -32,7 +41,7 @@ public class ResponseData {
     public String userId;
     public long timestamp;
     /** Response-specific data. */
-    public String extra;
+    public Map<String, String> extras;
 
     /**
      * Parses response string into ResponseData.
@@ -59,7 +68,6 @@ public class ResponseData {
         }
 
         ResponseData data = new ResponseData();
-        data.extra = extraData;
         data.responseCode = Integer.parseInt(fields[0]);
         data.nonce = Integer.parseInt(fields[1]);
         data.packageName = fields[2];
@@ -68,7 +76,34 @@ public class ResponseData {
         data.userId = fields[4];
         data.timestamp = Long.parseLong(fields[5]);
 
+        data.extras = decodeExtras(extraData);
+
         return data;
+    }
+
+    private static Map<String, String> decodeExtras(String extras) {
+        Map<String, String> results = new HashMap<>();
+        URI rawExtras;
+        try {
+            rawExtras = new URI("?" + extras);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Invalid syntax error while decoding extras data from " +
+                    "server.");
+        }
+
+        List<NameValuePair> extraList = URLEncodedUtils.parse(rawExtras, "UTF-8");
+        for (NameValuePair item : extraList) {
+            String name = item.getName();
+            int i = 0;
+            while (results.containsKey(name)) {
+                name = item.getName() + ++i;
+            }
+            results.put(name, item.getValue());
+        }
+        return results;
+    }
+
+    private ResponseData() {
     }
 
     @Override

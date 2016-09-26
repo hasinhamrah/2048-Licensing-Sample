@@ -138,26 +138,25 @@ public class APKExpansionPolicy implements Policy {
 
         if (response == Policy.LICENSED) {
             // Update server policy data
-            Map<String, String> extras = decodeExtras(rawData.extra);
             mLastResponse = response;
             setValidityTimestamp(Long.toString(System.currentTimeMillis() + MILLIS_PER_MINUTE));
-            Set<String> keys = extras.keySet();
+            Set<String> keys = rawData.extras.keySet();
             for (String key : keys) {
                 if (key.equals("VT")) {
-                    setValidityTimestamp(extras.get(key));
+                    setValidityTimestamp(rawData.extras.get(key));
                 } else if (key.equals("GT")) {
-                    setRetryUntil(extras.get(key));
+                    setRetryUntil(rawData.extras.get(key));
                 } else if (key.equals("GR")) {
-                    setMaxRetries(extras.get(key));
+                    setMaxRetries(rawData.extras.get(key));
                 } else if (key.startsWith("FILE_URL")) {
                     int index = Integer.parseInt(key.substring("FILE_URL".length())) - 1;
-                    setExpansionURL(index, extras.get(key));
+                    setExpansionURL(index, rawData.extras.get(key));
                 } else if (key.startsWith("FILE_NAME")) {
                     int index = Integer.parseInt(key.substring("FILE_NAME".length())) - 1;
-                    setExpansionFileName(index, extras.get(key));
+                    setExpansionFileName(index, rawData.extras.get(key));
                 } else if (key.startsWith("FILE_SIZE")) {
                     int index = Integer.parseInt(key.substring("FILE_SIZE".length())) - 1;
-                    setExpansionFileSize(index, Long.parseLong(extras.get(key)));
+                    setExpansionFileSize(index, Long.parseLong(rawData.extras.get(key)));
                 }
             }
         } else if (response == Policy.NOT_LICENSED) {
@@ -373,24 +372,4 @@ public class APKExpansionPolicy implements Policy {
         }
         return false;
     }
-
-    private Map<String, String> decodeExtras(String extras) {
-        Map<String, String> results = new HashMap<String, String>();
-        try {
-            URI rawExtras = new URI("?" + extras);
-            List<NameValuePair> extraList = URLEncodedUtils.parse(rawExtras, "UTF-8");
-            for (NameValuePair item : extraList) {
-                String name = item.getName();
-                int i = 0;
-                while (results.containsKey(name)) {
-                    name = item.getName() + ++i;
-                }
-                results.put(name, item.getValue());
-            }
-        } catch (URISyntaxException e) {
-            Log.w(TAG, "Invalid syntax error while decoding extras data from server.");
-        }
-        return results;
-    }
-
 }

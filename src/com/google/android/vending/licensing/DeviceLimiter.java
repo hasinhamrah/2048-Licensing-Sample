@@ -43,5 +43,5 @@ public interface DeviceLimiter {
      * @param userId the user whose license the server responded with
      * @return LICENSED if the device is allowed, NOT_LICENSED if not, RETRY if an error occurs
      */
-    int isDeviceAllowed(String userId);
+    int isDeviceAllowed(String userId, ResponseData data);
 }

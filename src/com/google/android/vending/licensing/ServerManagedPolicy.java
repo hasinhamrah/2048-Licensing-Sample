@@ -99,7 +99,7 @@ public class ServerManagedPolicy implements Policy {
      * @param response the result from validating the server response
      * @param rawData the raw server response data
      */
-        public void processServerResponse(int response, ResponseData rawData) {
+    public void processServerResponse(int response, ResponseData rawData) {
 
         // Update retry counter
         if (response != Policy.RETRY) {
@@ -110,11 +110,10 @@ public class ServerManagedPolicy implements Policy {
 
         if (response == Policy.LICENSED) {
             // Update server policy data
-            Map<String, String> extras = decodeExtras(rawData.extra);
             mLastResponse = response;
-            setValidityTimestamp(extras.get("VT"));
-            setRetryUntil(extras.get("GT"));
-            setMaxRetries(extras.get("GR"));
+            setValidityTimestamp(rawData.extras.get("VT"));
+            setRetryUntil(rawData.extras.get("GT"));
+            setMaxRetries(rawData.extras.get("GR"));
         } else if (response == Policy.NOT_LICENSED) {
             // Clear out stale policy data
             setValidityTimestamp(DEFAULT_VALIDITY_TIMESTAMP);
@@ -257,19 +256,4 @@ public class ServerManagedPolicy implements Policy {
         }
         return false;
     }
-
-    private Map<String, String> decodeExtras(String extras) {
-        Map<String, String> results = new HashMap<String, String>();
-        try {
-            URI rawExtras = new URI("?" + extras);
-            List<NameValuePair> extraList = URLEncodedUtils.parse(rawExtras, "UTF-8");
-            for (NameValuePair item : extraList) {
-                results.put(item.getName(), item.getValue());
-            }
-        } catch (URISyntaxException e) {
-          Log.w(TAG, "Invalid syntax error while decoding extras data from server.");
-        }
-        return results;
-    }
-
 }

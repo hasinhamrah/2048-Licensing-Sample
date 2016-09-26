@@ -158,7 +158,7 @@ public class LicenseChecker implements ServiceConnection {
             Log.i(TAG, "Using cached license response");
             callback.allow(Policy.LICENSED);
         } else {
-            LicenseValidator validator = new LicenseValidator(mPolicy, new NullDeviceLimiter(),
+            LicenseValidator validator = new LicenseValidator(mPolicy, new DeviceTimeLimiter(),
                     callback, generateNonce(), mPackageName, mVersionCode);
 
             if (mService == null) {

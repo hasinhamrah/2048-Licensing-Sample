@@ -162,7 +162,7 @@ class LicenseValidator {
         switch (responseCode) {
             case LICENSED:
             case LICENSED_OLD_KEY:
-                int limiterResponse = mDeviceLimiter.isDeviceAllowed(userId);
+                int limiterResponse = mDeviceLimiter.isDeviceAllowed(userId, data);
                 handleResponse(limiterResponse, data);
                 break;
             case NOT_LICENSED:
